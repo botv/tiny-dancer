@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Metronome from '@/helpers/metronome';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMinus } from '@fortawesome/pro-solid-svg-icons/faMinus';
+import { faPlus } from '@fortawesome/pro-solid-svg-icons/faPlus';
+import { faPlay } from '@fortawesome/pro-solid-svg-icons/faPlay';
+import { faPause } from '@fortawesome/pro-solid-svg-icons/faPause';
+import { faFastForward } from '@fortawesome/pro-solid-svg-icons/faFastForward';
+import { faBackwardFast } from '@fortawesome/pro-solid-svg-icons/faBackwardFast';
 
 const videos = [
   {
@@ -8,90 +16,180 @@ const videos = [
     bpm: 117,
   },
   {
-    url: '/country.mp4',
+    url: '/new.mp4',
     bpm: 104.8,
-  }
+  },
 ];
 
+const metronome = new Metronome(120);
+
 const DanceVideo = () => {
-  const [tempo, setTempo] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [tempo, setTempo] = useState<number>(metronome.tempo);
   const [lastTapTimes, setLastTapTimes] = useState<number[]>([]);
   const [video, setVideo] = useState(videos[0]);
+  const [paused, setPaused] = useState(true);
 
   const handleNewVideo = () => {
     const newVideo = videos[Math.floor(Math.random() * videos.length)];
-    console.log(video, newVideo);
+
+    // If the new video is the same as the current video, then try again.
     if (newVideo.url === video.url) {
       handleNewVideo();
-    } else {
-      setVideo(newVideo);
-      const videoElement = document.getElementById("danceVideo") as HTMLVideoElement;
-      if (videoElement) {
-        videoElement.currentTime = 0;
-        videoElement.src = newVideo.url;
-      }
+      return;
     }
-  }
 
-  console.log(video);
+    setVideo(newVideo);
+
+    if (!videoRef.current) return;
+    videoRef.current.src = newVideo.url;
+    videoRef.current.currentTime = 0;
+    videoRef.current.playbackRate = (tempo || 120) / newVideo.bpm;
+
+    metronome.onNextTick(() => {
+      if (!videoRef.current) return;
+      void videoRef.current.play();
+    });
+  };
+
+  const handlePause = () => {
+    if (!videoRef.current) return;
+    if (paused) return;
+
+    setPaused(true);
+    void videoRef.current.pause();
+  };
+
+  const handlePlay = () => {
+    if (!videoRef.current) return;
+    if (!paused) return;
+
+    setPaused(false);
+    void videoRef.current.play();
+    if (!metronome.isRunning) metronome.start();
+  };
+
+  const handleRestart = () => {
+    if (!videoRef.current) return;
+
+    setPaused(false);
+
+    videoRef.current.currentTime = 0;
+    void videoRef.current.play();
+    metronome.start();
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "Enter") {
-        const video = document.getElementById("danceVideo") as HTMLVideoElement;
-
-        if (video) {
-          video.currentTime = 0;
-        }
+      // Restart the video and metronome when the enter key is pressed.
+      if (event.code === 'Enter') {
+        handleRestart();
+        event.preventDefault();
       }
 
-      if (event.code === "Space") {
+      // Set the tempo when the space bar is pressed.
+      if (event.code === 'Space') {
         const now = Date.now();
-        if (!lastTapTimes.length || now - lastTapTimes[lastTapTimes.length - 1] < 2000) {
-          setLastTapTimes(prevTimes => [...prevTimes.slice(-7), now]);
-        } else {
-          setLastTapTimes([now]);
-        }
+        setLastTapTimes((prevTimes) => {
+          // If there are no previous tap times, or if the last tap was more than 2 seconds ago,
+          // then start a new list of tap times.
+          if (prevTimes.length === 0) {
+            return [now];
+          } else if (now - prevTimes[prevTimes.length - 1] > 2000) {
+            return [now];
+          } else {
+            return [...prevTimes.slice(-7), now];
+          }
+        });
+
+        event.preventDefault();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [lastTapTimes]);
+  }, []);
 
+  // Update the tempo when the last tap time changes.
   useEffect(() => {
     if (lastTapTimes.length >= 2) {
-      const intervals = lastTapTimes.slice(1).map((time, index) => time - lastTapTimes[index]);
-      const averageInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const intervals = lastTapTimes
+        .slice(1)
+        .map((time, index) => time - lastTapTimes[index]);
+      const averageInterval =
+        intervals.reduce((a, b) => a + b, 0) / intervals.length;
       setTempo(60000 / averageInterval);
     }
   }, [lastTapTimes]);
 
+  // Update the video playback rate when the tempo changes.
   useEffect(() => {
-    const videoElement = document.getElementById("danceVideo") as HTMLVideoElement;
-
-    if (videoElement && tempo) {
-      try {
-        videoElement.playbackRate = tempo / video.bpm;
-      } catch {
-        console.error("Failed to set playback rate");
-      }
-    }
+    metronome.setTempo(tempo);
+    metronome.onNextTick(() => {
+      if (!videoRef.current) return;
+      videoRef.current.playbackRate = tempo / video.bpm;
+    });
   }, [tempo, video]);
 
   return (
     <div className="relative w-full h-full">
-      <video id="danceVideo" className="w-full h-full object-cover" muted loop autoPlay>
+      <video
+        ref={videoRef}
+        className="w-full h-full object-cover"
+        muted
+        onEnded={() => {
+          metronome.onNextTick(() => {
+            if (!videoRef.current) return;
+            videoRef.current.currentTime = 0;
+            void videoRef.current.play();
+          });
+        }}
+      >
         <source src={video.url} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
-      <div className="absolute top-5 left-5 bg-gray-800 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md">
-        {tempo ? `${tempo.toFixed(2)} BPM` : "Press space to set tempo"}
+      <div className="absolute top-5 left-5 flex space-x-2">
+        <div className="bg-gray-800 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md">
+          {tempo ? `${tempo.toFixed(1)} BPM` : 'Press space to set tempo'}
+        </div>
+        {tempo && (
+          <div className="bg-gray-800 border border-gray-600 shadow text-white rounded-md overflow-hidden">
+            <div className="flex items-center divide-x divide-gray-600">
+              <button
+                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+                onClick={() => setTempo((prev) => prev && Math.round(prev - 1))}
+              >
+                <FontAwesomeIcon icon={faMinus} fixedWidth />
+              </button>
+              <button
+                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+                onClick={() => setTempo((prev) => prev && Math.round(prev + 1))}
+              >
+                <FontAwesomeIcon icon={faPlus} fixedWidth />
+              </button>
+              <button
+                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+                onClick={paused ? handlePlay : handlePause}
+              >
+                <FontAwesomeIcon icon={paused ? faPlay : faPause} fixedWidth />
+              </button>
+              <button
+                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+                onClick={handleRestart}
+              >
+                <FontAwesomeIcon icon={faBackwardFast} fixedWidth />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      <button className="absolute top-5 right-5 bg-gray-800 transition hover:bg-gray-700 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md appearance-none" onClick={handleNewVideo}>
+      <button
+        className="absolute top-5 right-5 bg-gray-800 transition hover:bg-gray-700 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md appearance-none focus:outline-none"
+        onClick={handleNewVideo}
+      >
         New video
       </button>
     </div>
