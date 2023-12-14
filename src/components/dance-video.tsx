@@ -138,15 +138,6 @@ const DanceVideo = () => {
 
   return (
     <div className="relative w-full h-full">
-      {/* Preload the videos so that they start playing immediately when the user presses play. */}
-      {videos.map((video) => (
-        <video
-          key={video.url}
-          src={video.url}
-          preload="auto"
-          style={{ display: 'none' }}
-        />
-      ))}
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
