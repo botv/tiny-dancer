@@ -11,7 +11,7 @@ export default class Metronome {
     this.audioContext = null;
     this.isRunning = false;
     this.tempo = tempo;
-    this.muted = false;
+    this.muted = true;
     this.nextTickTime = 0;
     this.scheduled = [];
     this.scheduleInterval = null;

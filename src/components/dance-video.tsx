@@ -16,8 +16,16 @@ const videos = [
     bpm: 117,
   },
   {
-    url: '/new.mp4',
+    url: '/cowboys.mp4',
     bpm: 104.8,
+  },
+  {
+    url: '/crabs.mp4',
+    bpm: 125,
+  },
+  {
+    url: '/monkeys.mp4',
+    bpm: 112,
   },
 ];
 
