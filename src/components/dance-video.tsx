@@ -7,8 +7,8 @@ import { faMinus } from '@fortawesome/pro-solid-svg-icons/faMinus';
 import { faPlus } from '@fortawesome/pro-solid-svg-icons/faPlus';
 import { faPlay } from '@fortawesome/pro-solid-svg-icons/faPlay';
 import { faPause } from '@fortawesome/pro-solid-svg-icons/faPause';
-import { faFastForward } from '@fortawesome/pro-solid-svg-icons/faFastForward';
 import { faBackwardFast } from '@fortawesome/pro-solid-svg-icons/faBackwardFast';
+import { faForwardFast } from '@fortawesome/pro-solid-svg-icons/faForwardFast';
 
 const videos = [
   {
@@ -30,12 +30,12 @@ const DanceVideo = () => {
   const [video, setVideo] = useState(videos[0]);
   const [paused, setPaused] = useState(true);
 
-  const handleNewVideo = () => {
+  const handleNextVideo = () => {
     const newVideo = videos[Math.floor(Math.random() * videos.length)];
 
     // If the new video is the same as the current video, then try again.
     if (newVideo.url === video.url) {
-      handleNewVideo();
+      handleNextVideo();
       return;
     }
 
@@ -44,17 +44,11 @@ const DanceVideo = () => {
     if (!videoRef.current) return;
     videoRef.current.src = newVideo.url;
     videoRef.current.currentTime = 0;
-    videoRef.current.playbackRate = (tempo || 120) / newVideo.bpm;
-
-    metronome.onNextTick(() => {
-      if (!videoRef.current) return;
-      void videoRef.current.play();
-    });
+    void videoRef.current.play();
   };
 
   const handlePause = () => {
     if (!videoRef.current) return;
-    if (paused) return;
 
     setPaused(true);
     void videoRef.current.pause();
@@ -62,7 +56,6 @@ const DanceVideo = () => {
 
   const handlePlay = () => {
     if (!videoRef.current) return;
-    if (!paused) return;
 
     setPaused(false);
     void videoRef.current.play();
@@ -89,6 +82,7 @@ const DanceVideo = () => {
 
       // Set the tempo when the space bar is pressed.
       if (event.code === 'Space') {
+        handlePlay();
         const now = Date.now();
         setLastTapTimes((prevTimes) => {
           // If there are no previous tap times, or if the last tap was more than 2 seconds ago,
@@ -136,6 +130,15 @@ const DanceVideo = () => {
 
   return (
     <div className="relative w-full h-full">
+      {/* Preload the videos so that they start playing immediately when the user presses play. */}
+      {videos.map((video) => (
+        <video
+          key={video.url}
+          src={video.url}
+          preload="auto"
+          style={{ display: 'none' }}
+        />
+      ))}
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
@@ -152,8 +155,10 @@ const DanceVideo = () => {
         Your browser does not support the video tag.
       </video>
       <div className="absolute top-5 left-5 flex space-x-2">
-        <div className="bg-gray-800 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md">
-          {tempo ? `${tempo.toFixed(1)} BPM` : 'Press space to set tempo'}
+        <div className="bg-gray-800 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md select-none">
+          {lastTapTimes.length
+            ? `${tempo.toFixed(1)} BPM`
+            : 'Press space to set tempo'}
         </div>
         {tempo && (
           <div className="bg-gray-800 border border-gray-600 shadow text-white rounded-md overflow-hidden">
@@ -182,16 +187,16 @@ const DanceVideo = () => {
               >
                 <FontAwesomeIcon icon={faBackwardFast} fixedWidth />
               </button>
+              <button
+                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+                onClick={handleNextVideo}
+              >
+                <FontAwesomeIcon icon={faForwardFast} fixedWidth />
+              </button>
             </div>
           </div>
         )}
       </div>
-      <button
-        className="absolute top-5 right-5 bg-gray-800 transition hover:bg-gray-700 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md appearance-none focus:outline-none"
-        onClick={handleNewVideo}
-      >
-        New video
-      </button>
     </div>
   );
 };
