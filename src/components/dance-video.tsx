@@ -24,6 +24,10 @@ const videos = [
     bpm: 125,
   },
   {
+    url: '/napoleon.mp4',
+    bpm: 133.5,
+  },
+  {
     url: '/monkeys.mp4',
     bpm: 112,
   },
@@ -39,18 +43,11 @@ const DanceVideo = () => {
   const [paused, setPaused] = useState(true);
 
   const handleNextVideo = () => {
-    const newVideo = videos[Math.floor(Math.random() * videos.length)];
-
-    // If the new video is the same as the current video, then try again.
-    if (newVideo.url === video.url) {
-      handleNextVideo();
-      return;
-    }
-
-    setVideo(newVideo);
+    const nextVideo = videos[(videos.indexOf(video) + 1) % videos.length];
+    setVideo(nextVideo);
 
     if (!videoRef.current) return;
-    videoRef.current.src = newVideo.url;
+    videoRef.current.src = nextVideo.url;
     videoRef.current.currentTime = 0;
     void videoRef.current.play();
   };
