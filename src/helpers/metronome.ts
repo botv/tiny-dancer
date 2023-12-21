@@ -4,14 +4,14 @@ export default class Metronome {
   tempo: number;
   muted: boolean;
   nextTickTime: number;
-  scheduled: (() => void)[];
+  scheduled: { callback: () => void; repeat: boolean }[];
   scheduleInterval: NodeJS.Timeout | null;
 
-  constructor(tempo: number) {
+  constructor(tempo: number, muted: boolean = true) {
     this.audioContext = null;
     this.isRunning = false;
     this.tempo = tempo;
-    this.muted = true;
+    this.muted = muted;
     this.nextTickTime = 0;
     this.scheduled = [];
     this.scheduleInterval = null;
@@ -40,8 +40,8 @@ export default class Metronome {
     this.tempo = tempo;
   }
 
-  onNextTick(callback: () => void) {
-    this.scheduled.push(callback);
+  schedule(callback: () => void, repeat: boolean = false) {
+    this.scheduled.push({ callback, repeat });
   }
 
   scheduleTick() {
@@ -50,8 +50,8 @@ export default class Metronome {
     }
 
     while (this.nextTickTime < this.audioContext.currentTime + 0.1) {
-      void Promise.all(this.scheduled.map((cb) => cb()));
-      this.scheduled = [];
+      void Promise.all(this.scheduled.map((s) => s.callback()));
+      this.scheduled = this.scheduled.filter((s) => s.repeat);
 
       if (!this.muted) {
         const oscillator = this.audioContext.createOscillator();

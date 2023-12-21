@@ -9,36 +9,23 @@ import { faPlay } from '@fortawesome/pro-solid-svg-icons/faPlay';
 import { faPause } from '@fortawesome/pro-solid-svg-icons/faPause';
 import { faBackwardFast } from '@fortawesome/pro-solid-svg-icons/faBackwardFast';
 import { faForwardFast } from '@fortawesome/pro-solid-svg-icons/faForwardFast';
+import {
+  defaultTempo,
+  maxSpacebarTapInterval,
+  maxSpacebarTaps,
+  showTempoIndicator,
+  videos,
+} from '@/lib/config';
+import { faCircle } from '@fortawesome/pro-regular-svg-icons/faCircle';
+import { faCircle as faCircleSolid } from '@fortawesome/pro-solid-svg-icons/faCircle';
 
-const videos = [
-  {
-    url: '/rat.mp4',
-    bpm: 117,
-  },
-  {
-    url: '/cowboys.mp4',
-    bpm: 104.8,
-  },
-  {
-    url: '/crabs.mp4',
-    bpm: 125,
-  },
-  {
-    url: '/napoleon.mp4',
-    bpm: 133.5,
-  },
-  {
-    url: '/monkeys.mp4',
-    bpm: 112,
-  },
-];
-
-const metronome = new Metronome(120);
+const metronome = new Metronome(defaultTempo);
 
 const DanceVideo = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [tempo, setTempo] = useState<number>(metronome.tempo);
   const [lastTapTimes, setLastTapTimes] = useState<number[]>([]);
+  const [tickTock, setTickTock] = useState(false);
   const [video, setVideo] = useState(videos[0]);
   const [paused, setPaused] = useState(true);
 
@@ -77,6 +64,14 @@ const DanceVideo = () => {
     metronome.start();
   };
 
+  // Rerender on every tick.
+  useEffect(() => {
+    metronome.schedule(() => {
+      setTickTock((prev) => !prev);
+    }, true);
+  }, []);
+
+  // Handle keyboard events.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Restart the video and metronome when the enter key is pressed.
@@ -94,10 +89,13 @@ const DanceVideo = () => {
           // then start a new list of tap times.
           if (prevTimes.length === 0) {
             return [now];
-          } else if (now - prevTimes[prevTimes.length - 1] > 2000) {
+          } else if (
+            now - prevTimes[prevTimes.length - 1] >
+            maxSpacebarTapInterval
+          ) {
             return [now];
           } else {
-            return [...prevTimes.slice(-7), now];
+            return [...prevTimes.slice(-(maxSpacebarTaps - 1)), now];
           }
         });
 
@@ -127,20 +125,28 @@ const DanceVideo = () => {
   // Update the video playback rate when the tempo changes.
   useEffect(() => {
     metronome.setTempo(tempo);
-    metronome.onNextTick(() => {
+    metronome.schedule(() => {
       if (!videoRef.current) return;
       videoRef.current.playbackRate = tempo / video.bpm;
     });
   }, [tempo, video]);
 
+  // Preload the next video so it starts playing immediately.
+  useEffect(() => {
+    const nextVideo = videos[(videos.indexOf(video) + 1) % videos.length];
+    const nextVideoElement = document.createElement('video');
+    nextVideoElement.src = nextVideo.url;
+    nextVideoElement.preload = 'auto';
+  }, [video]);
+
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full bg-black">
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
         muted
         onEnded={() => {
-          metronome.onNextTick(() => {
+          metronome.schedule(() => {
             if (!videoRef.current) return;
             videoRef.current.currentTime = 0;
             void videoRef.current.play();
@@ -152,46 +158,54 @@ const DanceVideo = () => {
       </video>
       <div className="absolute top-5 left-5 flex space-x-2">
         <div className="bg-gray-800 border border-gray-600 shadow text-white px-3 py-1.5 rounded-md select-none">
-          {lastTapTimes.length
-            ? `${tempo.toFixed(1)} BPM`
-            : 'Press space to set tempo'}
-        </div>
-        {tempo && (
-          <div className="bg-gray-800 border border-gray-600 shadow text-white rounded-md overflow-hidden">
-            <div className="flex items-center divide-x divide-gray-600">
-              <button
-                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
-                onClick={() => setTempo((prev) => prev && Math.round(prev - 1))}
-              >
-                <FontAwesomeIcon icon={faMinus} fixedWidth />
-              </button>
-              <button
-                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
-                onClick={() => setTempo((prev) => prev && Math.round(prev + 1))}
-              >
-                <FontAwesomeIcon icon={faPlus} fixedWidth />
-              </button>
-              <button
-                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
-                onClick={paused ? handlePlay : handlePause}
-              >
-                <FontAwesomeIcon icon={paused ? faPlay : faPause} fixedWidth />
-              </button>
-              <button
-                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
-                onClick={handleRestart}
-              >
-                <FontAwesomeIcon icon={faBackwardFast} fixedWidth />
-              </button>
-              <button
-                className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
-                onClick={handleNextVideo}
-              >
-                <FontAwesomeIcon icon={faForwardFast} fixedWidth />
-              </button>
+          {lastTapTimes.length ? (
+            <div>
+              {showTempoIndicator && (
+                <FontAwesomeIcon
+                  icon={tickTock ? faCircle : faCircleSolid}
+                  className="mr-2"
+                />
+              )}
+              {tempo.toFixed(1)} BPM
             </div>
+          ) : (
+            'Tap the space bar to set the tempo'
+          )}
+        </div>
+        <div className="bg-gray-800 border border-gray-600 shadow text-white rounded-md overflow-hidden">
+          <div className="flex items-center divide-x divide-gray-600">
+            <button
+              className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+              onClick={() => setTempo((prev) => prev && Math.round(prev - 1))}
+            >
+              <FontAwesomeIcon icon={faMinus} fixedWidth />
+            </button>
+            <button
+              className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+              onClick={() => setTempo((prev) => prev && Math.round(prev + 1))}
+            >
+              <FontAwesomeIcon icon={faPlus} fixedWidth />
+            </button>
+            <button
+              className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+              onClick={paused ? handlePlay : handlePause}
+            >
+              <FontAwesomeIcon icon={paused ? faPlay : faPause} fixedWidth />
+            </button>
+            <button
+              className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+              onClick={handleRestart}
+            >
+              <FontAwesomeIcon icon={faBackwardFast} fixedWidth />
+            </button>
+            <button
+              className="transition hover:bg-gray-700 px-3 py-1.5 appearance-none focus:outline-none"
+              onClick={handleNextVideo}
+            >
+              <FontAwesomeIcon icon={faForwardFast} fixedWidth />
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
